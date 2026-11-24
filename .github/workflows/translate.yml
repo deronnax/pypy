@@ -95,6 +95,11 @@ jobs:
         restore-keys: |
           deps-archives-
 
+    # get_externals.py imports rpython, which needs py (pulled in by pytest)
+    - name: install python dependencies
+      if: ${{ !matrix.container }}
+      run: pypy -m pip install -r requirements.txt
+
     # checks out the externals branch for this platform (win64_14x,
     # macos-arm64, ...); a no-op on platforms that have no such branch.  The
     # container builds get their dependencies from the image instead.
@@ -117,7 +122,6 @@ jobs:
             "$CONTAINER" \
             bash -c 'pypy -m pip install -r requirements.txt && pypy pypy/test_all.py pypy/objspace -v -m "not flaky"'
         else
-          pypy -m pip install -r requirements.txt
           pypy pypy/test_all.py pypy/objspace -v -m "not flaky"
         fi
 
