@@ -1,4 +1,4 @@
-import py, sys, os, signal, cStringIO, tempfile
+import py, pytest, sys, os, signal, cStringIO, tempfile
 
 import runner
 import pypy
@@ -52,11 +52,27 @@ def test_should_report_failure():
     assert not should_report_failure(". Abc\nP Def\n")
     assert not should_report_failure("F Def\n. Ghi\n. Jkl\n")
 
+def test_should_report_failure_junit():
+    should_report_failure = runner.should_report_failure
+    ok = '<testsuite errors="0" failures="0" tests="3"></testsuite>'
+    bad = '<testsuite errors="0" failures="1" tests="3"></testsuite>'
+    err = '<testsuite errors="2" failures="0" tests="3"></testsuite>'
+    # a valid report is trusted over the resultlog heuristic
+    assert not should_report_failure("", bad)
+    assert not should_report_failure("", err)
+    assert not should_report_failure("", '<testsuites>%s</testsuites>' % bad)
+    assert should_report_failure("F Def\n", ok)
+    # a missing or truncated report falls back on the resultlog
+    assert should_report_failure("", "")
+    assert should_report_failure("", '<testsuite errors="0" fail')
+    assert not should_report_failure("F Def\n", '<testsuite errors="0" fail')
+    assert not should_report_failure("F Def\n", "<html/>")
+
 
 
 class TestRunHelper(object):
-    def pytest_funcarg__out(self, request):
-        tmpdir = request.getfuncargvalue('tmpdir')
+    @pytest.fixture
+    def out(self, tmpdir):
         return tmpdir.ensure('out')
 
     def test_run(self, out):
@@ -120,7 +136,7 @@ class TestExecuteTest(object):
                     '-p', 'resultlog',
                     '--resultlog=LOGFILE',
                     '--continue-on-collection-errors',
-                    #'--junitxml=LOGFILE.junit',
+                    '--junitxml=LOGFILE.junit',
 
                     'test_one']
 
@@ -140,7 +156,7 @@ class TestExecuteTest(object):
                     '-p', 'resultlog',
                     '--resultlog=LOGFILE',
                     '--continue-on-collection-errors',
-                    #'--junitxml=LOGFILE.junit',
+                    '--junitxml=LOGFILE.junit',
                     'test_one']
         assert self.called[0] == expected
         assert self.called == (expected, '/wd', 'out', 'secs')
@@ -267,6 +283,15 @@ class RunnerTests(object):
 
         assert noutcomes == 107
         assert nfailures == 6
+
+        # pytest also wrote a valid junit-xml report, which records the
+        # failures, so they are not mistaken for a crash of pytest
+        junitfiles = run_param.sessdir.listdir('*-pytest-log.junit')
+        assert junitfiles
+        for f in junitfiles:
+            assert runner.junit_has_failures(f.read()) is True
+        assert not [line for line in log_lines if line.startswith('! ')]
+        assert 'somefailed=True' in out
 
     def test_one_dir_dry_run(self):
         test_driver = [pytest_script]

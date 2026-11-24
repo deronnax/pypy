@@ -6,7 +6,7 @@ name: Rpython Unit Tests
 # Note: this action will only run if there are changes to one of:
 #  - rpython folder
 #  - this workflow file
-#  - pytest.py
+#  - requirements.txt (pins pytest)
 # add more items to `paths` if we missed some!
 
 on:
@@ -14,13 +14,13 @@ on:
     branches: [ "main", "py3.[0-9]+" ]
     paths:
         - "rpython/**/*"
-        - "pytest.py"
+        - "requirements.txt"
         - ".github/workflows/rpython-unit-tests.yml"
   pull_request:
     branches: [ "main", "py3.[0-9]+" ]
     paths:
       - "rpython/**/*"
-      - "pytest.py"
+      - "requirements.txt"
       - ".github/workflows/rpython-unit-tests.yml"
   workflow_dispatch:
 
@@ -82,7 +82,7 @@ jobs:
         python-version: "pypy2.7-8.0.0"
     - name: Install test dependencies
       if: ${{ !matrix.container }}
-      run: pypy -m pip install hypothesis==4.39.3
+      run: pypy -m pip install pytest==4.6.11 hypothesis==4.39.3
     - name: Install macOS dependencies
       if: ${{ startsWith(matrix.runner, 'macos') }}
       run: |
@@ -159,12 +159,12 @@ jobs:
             -e PYPY_SIGTERM_DUMP_DIR=/workspace/sigterm-dumps \
             -e GC_MARKERS=1 \
             "$CONTAINER" \
-            pypy testrunner/runner.py \
+            bash -c 'pypy -m pip install pytest==4.6.11 && exec pypy testrunner/runner.py \
               --config=pypy/testrunner_cfg.py \
               --config=machine_cfg.py \
               --root=rpython \
-              --timeout=$TEST_TIMEOUT \
-              --logfile=testrun.log \
+              --timeout='"$TEST_TIMEOUT"' \
+              --logfile=testrun.log' \
             2>&1 | tee testrun-output.log
         else
           pypy testrunner/runner.py \

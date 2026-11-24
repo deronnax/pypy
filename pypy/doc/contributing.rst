@@ -272,10 +272,11 @@ translation (untranslated tests) and those that run on top of a translated
 ``pypy`` (app tests). Since RPython is a dialect of Python2, the untranslated
 tests run with a python2 host.
 
-The PyPy source tree comes with an inlined version of ``py.test``
-which you can invoke by typing::
+PyPy uses ``pytest`` 4.6 (the last release supporting python2.7), which you
+can install with ``python2 -m pip install -r requirements.txt``. You can then
+invoke it by typing::
 
-    python2 pytest.py -h
+    python2 -m pytest -h
 
 You will need the `build requirements`_ to run tests successfully, since many of
 them compile little pieces of PyPy and then run the tests inside that minimal
@@ -285,10 +286,10 @@ cases with ``hypothesis``.
 Now on to running some tests.  PyPy has many different test directories
 and you can use shell completion to point at directories or files::
 
-    python2 pytest.py pypy/interpreter/test/test_pyframe.py
+    python2 -m pytest pypy/interpreter/test/test_pyframe.py
 
     # or for running tests of a whole subdirectory
-    python2 pytest.py pypy/interpreter/
+    python2 -m pytest pypy/interpreter/
 
 Beware trying to run "all" pypy tests by pointing to the root
 directory or even the top level subdirectory ``pypy``.  It takes
@@ -308,7 +309,7 @@ our own tests in ``pypy/*/test/``.
 App level testing
 -----------------
 
-While the usual invocation of ``python2 pytest.py`` runs app-level tests on an
+While the usual invocation of ``python2 -m pytest`` runs app-level tests on an
 untranslated PyPy that runs on top of python2, we have a test extension to run tests
 directly on the host python. This is very convenient for modules such as
 ``cpyext``, to compare and contrast test results between CPython and PyPy.
@@ -322,13 +323,13 @@ run directly on the host interpreter when passing ``-D`` or
 Mixed-level tests (the usual ones that start with ``test_``) are invoked by using the ``-A`` or ``--runappdirect`` option to
 ``pytest``::
 
-    python2 pytest.py -A pypy/module/cpyext/test
+    python2 -m pytest -A pypy/module/cpyext/test
 
 where ``python2`` can be either ``python2`` or ``pypy2``. On any of the ``py3*`` branches, the
 collection phase must be run with ``python2`` so untranslated tests are run
 with::
 
-    python2 pytest.py -A pypy/module/cpyext/test --python=path/to/pypy3
+    python2 -m pytest -A pypy/module/cpyext/test --python=path/to/pypy3
 
 
 Testing After Translation

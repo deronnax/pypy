@@ -163,7 +163,7 @@ Hacking on PyPy with the mingw compiler
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Since hacking on PyPy means running tests, you will need a way to specify
 the mingw compiler when hacking (as opposed to translating). As of
-March 2012, --cc is not a valid option for pytest.py. However if you set an
+March 2012, --cc is not a valid option for pytest. However if you set an
 environment variable CC to the compiler exe, testing will use it.
 
 .. _mingw32 build: https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Automated%20Builds

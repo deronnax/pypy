@@ -7,6 +7,7 @@
 # ...unless the -A option ('runappdirect') is passed.
 
 import py
+import _pytest._code
 import sys, textwrap, types, gc
 from pypy.interpreter.gateway import app2interp_temp
 from pypy.interpreter.error import OperationError
@@ -34,9 +35,9 @@ class AppTestMethod(py.test.collect.Function):
                 # list.__getslice__ (py2) would silently downgrade this to
                 # a plain list, breaking traceback.recursionindex() calls
                 # later on; wrap explicitly to keep the Traceback type.
-                excinfo.traceback = py.code.Traceback(traceback[:recursionindex + 1])
+                excinfo.traceback = _pytest._code.Traceback(traceback[:recursionindex + 1])
             elif len(traceback) > 100:
-                excinfo.traceback = py.code.Traceback(traceback[:100])
+                excinfo.traceback = _pytest._code.Traceback(traceback[:100])
 
     def execute_appex(self, space, target, *args):
         self.space = space
@@ -109,19 +110,28 @@ class AppClassInstance(py.test.collect.Instance):
             return AppTestMethod(name, parent=self)
         return super(AppClassInstance, self)._makeitem(name, obj)
 
-    def setup(self):
-        super(AppClassInstance, self).setup()
-        instance = self.obj
-        space = instance.space
-        w_class = self.parent.w_class
-        if self.config.option.runappdirect:
-            self.w_instance = instance
-        else:
-            self.w_instance = space.call_function(w_class)
+    @property
+    def w_instance(self):
+        # created lazily: with pytest >= 4, setup_class() runs from a
+        # fixture, i.e. only when the first test of the class is set up
+        w_instance = self.__dict__.get('_w_instance')
+        if w_instance is None:
+            instance = self.obj
+            if self.config.option.runappdirect:
+                w_instance = instance
+            else:
+                space = instance.space
+                w_instance = space.call_function(self.parent.w_class)
+            self._w_instance = w_instance
+        return w_instance
 
 
 class AppClassCollector(py.test.Class):
     def collect(self):
+        # pytest >= 4 runs setup_class/setup_method through fixtures that
+        # Class.collect() injects; we override collect(), so do it here
+        self._inject_setup_class_fixture()
+        self._inject_setup_method_fixture()
         return [AppClassInstance(name="()", parent=self)]
 
     def setup(self):
@@ -137,14 +147,21 @@ class AppClassCollector(py.test.Class):
                     raise AssertionError("unsupported: %r is a generator "
                                          "app-level test method" % (name,))
         # </hack>
-        #
-        space = cls.space
-        clsname = cls.__name__
-        if self.config.option.runappdirect:
-            w_class = cls
-        else:
-            w_class = space.call_function(space.w_type,
-                                          space.wrap(clsname),
-                                          space.newtuple([]),
-                                          space.newdict())
-        self.w_class = w_class
+
+    @property
+    def w_class(self):
+        # lazy, see AppClassInstance.w_instance
+        w_class = self.__dict__.get('_w_class')
+        if w_class is None:
+            cls = self.obj
+            space = cls.space
+            clsname = cls.__name__
+            if self.config.option.runappdirect:
+                w_class = cls
+            else:
+                w_class = space.call_function(space.w_type,
+                                              space.wrap(clsname),
+                                              space.newtuple([]),
+                                              space.newdict())
+            self._w_class = w_class
+        return w_class

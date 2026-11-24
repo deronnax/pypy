@@ -3,9 +3,10 @@ import linecache
 
 import py
 import pytest
+import _pytest._code
 from pypy.interpreter import gateway, pycode, typedef, baseobjspace
 from pypy.interpreter.error import OperationError, oefmt
-from _pytest.assertion.reinterpret import reinterpret as interpret
+from rpython.tool.pytest.reinterpret import reinterpret as interpret
 
 # ____________________________________________________________
 
@@ -43,7 +44,7 @@ class AppCode(object):
             argcount += raw.co_flags & CO_VARKEYWORDS
         return raw.co_varnames[:argcount]
 
-class AppFrame(py.code.Frame):
+class AppFrame(_pytest._code.Frame):
 
     def __init__(self, space, pyframe):
         self.code = AppCode(space, \
@@ -89,18 +90,30 @@ class AppFrame(py.code.Frame):
         return retval
 
 
-class AppExceptionInfo(py.code.ExceptionInfo):
+class AppExceptionInfo(_pytest._code.ExceptionInfo):
     """An ExceptionInfo object representing an app-level exception."""
 
     def __init__(self, space, operr):
         self.space = space
         self.operr = operr
-        self.typename = operr.w_type.getname(space)
-        self.traceback = AppTraceback(space, self.operr.get_traceback())
+        self._typename = operr.w_type.getname(space)
+        self._striptext = ""
+        self._traceback = AppTraceback(space, self.operr.get_traceback())
         debug_excs = getattr(operr, 'debug_excs', [])
         if debug_excs:
             self._excinfo = debug_excs[0]
-        self.value = self.operr.errorstr(self.space)  # XXX
+        else:
+            self._excinfo = (None, None, None)
+        self._value = self.operr.errorstr(self.space)  # XXX
+
+    # these are read-only properties in pytest >= 4
+    @property
+    def typename(self):
+        return self._typename
+
+    @property
+    def value(self):
+        return self._value
 
     def __repr__(self):
         return "<AppExceptionInfo %s>" % self.operr.errorstr(self.space)
@@ -127,11 +140,13 @@ class AppExceptionInfo(py.code.ExceptionInfo):
     def __str__(self):
         return '(application-level) ' + self.operr.errorstr(self.space)
 
-class AppTracebackEntry(py.code.Traceback.Entry):
+class AppTracebackEntry(_pytest._code.code.TracebackEntry):
     exprinfo = None
     frame = None
 
     def __init__(self, space, tb):
+        self._excinfo = None
+        self._rawentry = None
         self.frame = AppFrame(space, space.getattr(tb, space.wrap('tb_frame')))
         self.lineno = space.unwrap(space.getattr(tb, space.wrap('tb_lineno'))) - 1
 
@@ -148,7 +163,7 @@ class AppTracebackEntry(py.code.Traceback.Entry):
     def ishidden(self):
         return False
 
-class AppTraceback(py.code.Traceback):
+class AppTraceback(_pytest._code.Traceback):
     Entry = AppTracebackEntry
 
     def __init__(self, space, apptb):

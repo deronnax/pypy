@@ -8,9 +8,11 @@ def test_two():
 def test_three():
     assert "hello" == "world"
 
-def test_many():
-    for i in range(100):
-        yield test_one,
+import pytest
+
+@pytest.mark.parametrize('i', range(100))
+def test_many(i):
+    test_one()
 
 class TestStuff:
 

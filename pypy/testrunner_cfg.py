@@ -17,7 +17,7 @@ DIRS_SPLIT = [
     'module/_hpy_universal/test/_vendored',
 ]
 
-pytestpath = os.path.abspath('pytest.py')
+pytestpath = os.path.abspath(os.path.join('pypy', 'test_all.py'))
 
 def collect_one_testdir(testdirs, reldir, tests):
     for dir in DIRS_SPLIT:
