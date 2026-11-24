@@ -24,7 +24,12 @@ class RVMProfTest(object):
             return self.name
 
     @pytest.fixture
-    def init(self):
+    def init(self, tmpdir):
+        # fixtures must not be called directly (pytest >= 4), so the
+        # subclasses customize _init() instead
+        self._init(tmpdir)
+
+    def _init(self, tmpdir):
         self.register()
         self.rpy_entry_point = compile(self.entry_point, self.ENTRY_POINT_ARGS)
 
@@ -102,12 +107,11 @@ class RVMProfSamplingTest(RVMProfTest):
     # https://github.com/vmprof/vmprof-python/issues/163
     SAMPLING_INTERVAL = 1/250.0
 
-    @pytest.fixture
-    def init(self, tmpdir):
+    def _init(self, tmpdir):
         self.tmpdir = tmpdir
         self.tmpfile = tmpdir.join('profile.vmprof')
         self.tmpfilename = str(self.tmpfile)
-        super(RVMProfSamplingTest, self).init()
+        super(RVMProfSamplingTest, self)._init(tmpdir)
 
     ENTRY_POINT_ARGS = (int, float, int)
     def entry_point(self, value, delta_t, memory=0):
@@ -185,8 +189,7 @@ class TestEnable(RVMProfSamplingTest):
 
 class TestNative(RVMProfSamplingTest):
 
-    @pytest.fixture
-    def init(self, tmpdir):
+    def _init(self, tmpdir):
         eci = ExternalCompilationInfo(compile_extra=['-g','-O0', '-Werror'],
                 post_include_bits = ['int native_func(int);'],
                 separate_module_sources=["""
@@ -204,7 +207,7 @@ class TestNative(RVMProfSamplingTest):
                 """])
         self.native_func = rffi.llexternal("native_func", [rffi.INT], rffi.INT,
                                            compilation_info=eci)
-        super(TestNative, self).init(tmpdir)
+        super(TestNative, self)._init(tmpdir)
 
     @rvmprof.vmprof_execute_code("xcode1", lambda self, code, count: code)
     def main(self, code, count):

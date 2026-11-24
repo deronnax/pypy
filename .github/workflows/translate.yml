@@ -157,15 +157,17 @@ jobs:
           Windows) PYPY_C=pypy/goal/pypy*-c.exe; PORTABLE="" ;;
           *)       PYPY_C=pypy/goal/pypy*-c;      PORTABLE="--make-portable" ;;
         esac
+        # package.py needs py, which the freshly translated pypy-c does not
+        # have: run it with the host pypy and point it at the translated one
         if [ -n "$CONTAINER" ]; then
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -w /workspace \
             -e PYPY_ARCHIVES_DIR=/workspace/.deps-archives \
             "$CONTAINER" \
-            bash -c "./$PYPY_C pypy/tool/release/package.py $PORTABLE --target=."
+            bash -c "pypy -m pip install -r requirements.txt && pypy pypy/tool/release/package.py $PORTABLE --override_pypy_c=\$(ls $PYPY_C) --target=."
         else
-          ./$PYPY_C pypy/tool/release/package.py $PORTABLE --target=.
+          pypy pypy/tool/release/package.py $PORTABLE --override_pypy_c=$(ls $PYPY_C) --target=.
         fi
 
     - name: upload
