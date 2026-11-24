@@ -8,3 +8,6 @@ vmprof>=0.4.13
 # hypothesis is used for test generation on untranslated tests
 hypothesis<4.40
 enum34>=1.1.2
+
+# the test runner; 4.6 is the last release supporting python2.7
+pytest==4.6.11

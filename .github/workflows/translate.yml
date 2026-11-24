@@ -115,10 +115,10 @@ jobs:
             -v "$GITHUB_WORKSPACE:/workspace" \
             -w /workspace \
             "$CONTAINER" \
-            bash -c 'pypy -m pip install -r requirements.txt && pypy pytest.py pypy/objspace -v -m "not flaky"'
+            bash -c 'pypy -m pip install -r requirements.txt && pypy pypy/test_all.py pypy/objspace -v -m "not flaky"'
         else
           pypy -m pip install -r requirements.txt
-          pypy pytest.py pypy/objspace -v -m "not flaky"
+          pypy pypy/test_all.py pypy/objspace -v -m "not flaky"
         fi
 
     - name: translate
