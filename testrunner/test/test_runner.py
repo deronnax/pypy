@@ -1,4 +1,4 @@
-import py, sys, os, signal, cStringIO, tempfile
+import py, pytest, sys, os, signal, cStringIO, tempfile
 
 import runner
 import pypy
@@ -71,8 +71,8 @@ def test_should_report_failure_junit():
 
 
 class TestRunHelper(object):
-    def pytest_funcarg__out(self, request):
-        tmpdir = request.getfuncargvalue('tmpdir')
+    @pytest.fixture
+    def out(self, tmpdir):
         return tmpdir.ensure('out')
 
     def test_run(self, out):

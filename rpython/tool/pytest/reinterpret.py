@@ -7,12 +7,19 @@ import sys
 import _pytest._code
 import py
 from _pytest.assertion import util
+
+try:
+    # the original AssertionError, whatever happens to __builtin__
+    import exceptions
+    BuiltinAssertionError = exceptions.AssertionError
+except ImportError:
+    BuiltinAssertionError = AssertionError
 u = py.builtin._totext
 
 
-class AssertionError(util.BuiltinAssertionError):
+class AssertionError(BuiltinAssertionError):
     def __init__(self, *args):
-        util.BuiltinAssertionError.__init__(self, *args)
+        BuiltinAssertionError.__init__(self, *args)
         if args:
             # on Python2.6 we get len(args)==2 for: assert 0, (x,y)
             # on Python2.7 and above we always get len(args) == 1
@@ -384,7 +391,7 @@ class DebugInterpreter(ast.NodeVisitor):
         explanation = "assert %s" % (test_explanation,)
         if not self.frame.is_true(test_result):
             try:
-                raise util.BuiltinAssertionError
+                raise BuiltinAssertionError
             except Exception:
                 raise Failure(explanation)
         return explanation, test_result
