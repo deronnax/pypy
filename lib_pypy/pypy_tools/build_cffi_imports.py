@@ -55,7 +55,10 @@ cffi_dependencies = {
               [
                ['./config', '--prefix=/usr', 'no-shared', 'no-tests', 'enable-fips'],
                ['make', '-s', '-j', str(multiprocessing.cpu_count())],
-               ['make', 'install', 'DESTDIR={}/'.format(deps_destdir)],
+               # install_sw: the plain 'install' also renders the man and
+               # html pages, single-threaded, which takes longer than the
+               # build itself; we only link against the static libraries
+               ['make', 'install_sw', 'DESTDIR={}/'.format(deps_destdir)],
               ]),
 
     'gdbm': (

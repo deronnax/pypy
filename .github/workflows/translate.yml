@@ -104,44 +104,73 @@ jobs:
         PYTHONPATH: .
       run: pypy get_externals.py
 
-    - name: run objspace unit tests
+    # rpython picks the nmake/jom.exe it finds on the PATH, and nmake runs
+    # one compiler at a time; jom.exe runs one per core
+    - name: install jom
+      if: ${{ runner.os == 'Windows' }}
+      run: choco install jom -y --no-progress
+
+    # the objspace tests do not depend on the translation, which leaves most
+    # cores idle until compile_c, so run them alongside it, except on macOS
+    # (3 cores, 7GB on macos-latest) where both then run much slower.  Their
+    # output goes to objspace-tests.log, shown (and checked) by the next step.
+    - name: objspace unit tests and translate
       env:
         CONTAINER: ${{ matrix.container }}
       shell: bash
       run: |
         set -o pipefail
-        if [ -n "$CONTAINER" ]; then
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            "$CONTAINER" \
-            bash -c 'pypy -m pip install -r requirements.txt && pypy pytest.py pypy/objspace -v -m "not flaky"'
+        in_env() {
+          if [ -n "$CONTAINER" ]; then
+            docker run --rm \
+              -v "$GITHUB_WORKSPACE:/workspace" \
+              -w /workspace \
+              "$CONTAINER" \
+              bash -c "$1"
+          else
+            bash -c "$1"
+          fi
+        }
+        run_tests() {
+          # the tests don't write .pyc files, the translation may be
+          # importing the same modules at the same time
+          st=0
+          in_env "pypy -m pip install -r requirements.txt && PYTHONDONTWRITEBYTECODE=1 pypy pytest.py pypy/objspace -v -m 'not flaky'" \
+            > objspace-tests.log 2>&1 || st=$?
+          echo $st > objspace-tests.status
+          return $st
+        }
+        if [ "${{ runner.os }}" = macOS ]; then
+          # a failure skips the translation, the next step shows why
+          run_tests || exit 0
         else
-          pypy -m pip install -r requirements.txt
-          pypy pytest.py pypy/objspace -v -m "not flaky"
+          run_tests &
+          tests_pid=$!
+          # even if the translation fails, let the tests finish for the next
+          # step
+          trap 'st=$?; wait $tests_pid || true; exit $st' EXIT
         fi
 
-    - name: translate
-      env:
-        CONTAINER: ${{ matrix.container }}
-      shell: bash
-      run: |
-        set -o pipefail
         OPTS="${{ matrix.revdb && '-O2 --revdb' || '-Ojit' }}"
-        if [ -n "$CONTAINER" ]; then
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace \
-            "$CONTAINER" \
-            pypy rpython/bin/rpython $OPTS pypy/goal/targetpypystandalone.py
-        else
-          pypy rpython/bin/rpython $OPTS pypy/goal/targetpypystandalone.py
+        # rpython's default is half the cores (for hyperthreading), the
+        # runners' vCPUs are not hyperthreads.  macOS already gets all of
+        # them, on Windows jom.exe does.
+        if [ "${{ runner.os }}" = Linux ]; then
+          OPTS="$OPTS --make-jobs=$(nproc)"
         fi
+        in_env "pypy rpython/bin/rpython $OPTS pypy/goal/targetpypystandalone.py"
         case "${{ runner.os }}" in
           Windows) mv pypy*-c.exe libpypy*-c.dll pypy/goal/ ;;
           macOS)   mv pypy*-c libpypy*-c.dylib pypy/goal/ ;;
           *)       mv pypy*-c libpypy*-c.so pypy/goal/ ;;
         esac
+
+    - name: objspace unit tests results
+      if: success() || failure()
+      shell: bash
+      run: |
+        cat objspace-tests.log || true
+        exit "$(cat objspace-tests.status 2>/dev/null || echo 1)"
 
     - name: package
       env:
