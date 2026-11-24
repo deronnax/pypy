@@ -143,8 +143,13 @@ def test_all():
     with open(str(testfile), "wt") as outfid:
         outfid.write("#copied from '%s'\n\n" % thisfile)
         outfid.write(text)
-    p = subprocess.Popen([sys.executable, pytest.__file__, str(testfile)],
-                        universal_newlines=True)
+    import rpython
+    rootdir = os.path.dirname(os.path.dirname(os.path.abspath(rpython.__file__)))
+    env = os.environ.copy()
+    env['PYTHONPATH'] = os.pathsep.join(
+        [rootdir] + [x for x in [env.get('PYTHONPATH')] if x])
+    p = subprocess.Popen([sys.executable, '-m', 'pytest', str(testfile)],
+                         env=env, universal_newlines=True)
     result = p.wait()
     assert result == 0, "tests failed, run using '%s'" % testfile
 

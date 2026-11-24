@@ -7,14 +7,29 @@ import sys
 import _pytest._code
 import py
 from _pytest.assertion import util
+from _pytest._code.source import getstatementrange_ast
 
-try:
-    # the original AssertionError, whatever happens to __builtin__
-    import exceptions
-    BuiltinAssertionError = exceptions.AssertionError
-except ImportError:
-    BuiltinAssertionError = AssertionError
+# the original AssertionError: this module is imported before the builtin
+# gets replaced by the class below
+BuiltinAssertionError = AssertionError
 u = py.builtin._totext
+
+
+def _getstatement(source, lineno):
+    """Like source.getstatement(lineno), but robust against py2-only syntax.
+
+    pytest's own compile() inherits the __future__ flags of _pytest/_code/
+    source.py (print_function), so it chokes on files using print statements.
+    """
+    try:
+        return source.getstatement(lineno)
+    except SyntaxError:
+        pass
+    if not (0 <= lineno < len(source)):
+        raise IndexError("lineno out of range")
+    astnode = compile(str(source), "source", "exec", ast.PyCF_ONLY_AST, True)
+    _, start, end = getstatementrange_ast(lineno, source, astnode=astnode)
+    return source[start:end]
 
 
 class AssertionError(BuiltinAssertionError):
@@ -40,7 +55,7 @@ class AssertionError(BuiltinAssertionError):
                 source = f.code.fullsource
                 if source is not None:
                     try:
-                        source = source.getstatement(f.lineno)
+                        source = _getstatement(source, f.lineno)
                     except IndexError:
                         source = None
                     else:
